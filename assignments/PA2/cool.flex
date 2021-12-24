@@ -79,15 +79,18 @@ BOOL_CONST      {TRUE}|{FALSE}
 KEYWORDS        {CLASS}|{ELSE}|{FALSE}|{FI}|{IF}|{IN}|{INHERITS}|{ISVOID}|{LET}|{LOOP}|{POOL}|{THEN}|{WHILE}|{CASE}|{ESAC}|{NEW}|{OF}|{NOT}|{TRUE}
 TYPEID          ([A-Z]({LETTER}|{DIGIT}|_)*)
 OBJECTID        ([a-z]({LETTER}|{DIGIT}|_)*)
-WHITESPACE      (" "|\f|\r|\t|\v)+
+WHITESPACE      (" "|\f|\r|\t|\v)
 LINE_END        \n
+LINE_CMT        "--"
 START_CMT       "(*"
-END_CMD         "*)"
+END_CMT         "*)"
 STR_TERM        "\""
 
 %x              CMT
 %x              STR
+%x              CMTERROR
 %x              STRERROR
+%x              LINECMT
 %%
 
  /*
@@ -126,11 +129,37 @@ STR_TERM        "\""
   return (ERROR); 
 }
 
-<STR>0                {
+<STR>\0            {
   cool_yylval.error_msg = "String contains null character";
   BEGIN(STRERROR);
   return (ERROR);
 }
+<STR><<EOF>>       {
+  cool_yylval.error_msg = "EOF in string constant";
+  BEGIN(STRERROR);
+  return (ERROR);
+}
+
+
+<STR>"\\".   {
+  if (string_buf_ptr - string_buf + 1 > MAX_STR_CONST) {
+    BEGIN(STRERROR);
+    cool_yylval.error_msg = "String constant too long";
+    return (ERROR);
+  }
+  if (yytext[1] == 'b') {
+    (*string_buf_ptr++) = '\b';
+  } else if (yytext[1] == 't') {
+    (*string_buf_ptr++) = '\t';
+  } else if (yytext[1] == 'n') {
+    (*string_buf_ptr++) = '\n';
+  } else if (yytext[1] == 'f') {
+    (*string_buf_ptr++) = '\f';
+  } else {
+    (*string_buf_ptr++) = yytext[1];
+  }
+}
+
 <STR>.                {
   if (string_buf_ptr - string_buf + 1 > MAX_STR_CONST) {
     BEGIN(STRERROR);
@@ -140,10 +169,49 @@ STR_TERM        "\""
   *(string_buf_ptr++) = yytext[0];
 }
 
+
 <STRERROR>{STR_TERM} {
   BEGIN(INITIAL);
 }
+<STRERROR>\n {}
+<STRERROR><<EOF>> { return 0; }
+<STRERROR>.  {}
 
+{LINE_CMT}  {
+  BEGIN(LINECMT);
+}
+
+<LINECMT><<EOF>> {
+  BEGIN(INITIAL);
+  return 0;
+}
+
+<LINECMT>\n      {
+  BEGIN(INITIAL);
+  ++curr_lineno;
+}
+
+{START_CMT}          {
+  BEGIN(CMT);
+}
+<CMT><<EOF>>         {
+  BEGIN(INITIAL);
+  cool_yylval.error_msg = "EOF in comment";
+  return (ERROR);
+}
+<CMT>\n              {
+  ++curr_lineno;
+}
+<CMT>.               {}
+
+<CMT>{END_CMT}       {
+  BEGIN(INITIAL);
+}
+
+{END_CMT}            {
+  cool_yylval.error_msg = "Unmatched *)";
+  return (ERROR);
+}
 
 
 {CLASS}     { return (CLASS); }

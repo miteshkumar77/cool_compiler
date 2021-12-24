@@ -190,6 +190,7 @@ STR_TERM        "\""
   BEGIN(INITIAL);
   ++curr_lineno;
 }
+<LINECMT>.       {}
 
 {START_CMT}          {
   BEGIN(CMT);

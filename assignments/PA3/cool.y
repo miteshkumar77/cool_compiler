@@ -133,13 +133,31 @@
     %type <program> program
     %type <classes> class_list
     %type <class_> class
-    
+    %type <feature> feature
+    %type <formal> formal
+    %type <formals> formal_list
+    %type <expression> expression   
+
     /* You will want to change the following line. */
-    %type <features> dummy_feature_list
-    
+    %type <features> feature_list
+    %type <expressions> expression_list
+    %type <expressions> block_expression_list
+    %type <cases> case_list
+    %type <case_> case
     /* Precedence declarations go here. */
     
-    
+    %left '.'
+    %precedence '@'
+    %precedence '~'
+    %precedence ISVOID
+    %left '*' '/'
+    %left '+' '-'
+    %nonassoc LE '<' '='
+    %precedence NOT
+    %right ASSIGN
+
+
+
     %%
     /* 
     Save the root of the abstract syntax tree in a global variable.
@@ -157,19 +175,114 @@
     ;
     
     /* If no parent is specified, the class inherits from the Object class. */
-    class	: CLASS TYPEID '{' dummy_feature_list '}' ';'
+    class	: CLASS TYPEID '{' feature_list '}' ';'
     { $$ = class_($2,idtable.add_string("Object"),$4,
     stringtable.add_string(curr_filename)); }
-    | CLASS TYPEID INHERITS TYPEID '{' dummy_feature_list '}' ';'
+    | CLASS TYPEID INHERITS TYPEID '{' feature_list '}' ';'
     { $$ = class_($2,$4,$6,stringtable.add_string(curr_filename)); }
     ;
     
     /* Feature list may be empty, but no empty features in list. */
-    dummy_feature_list:		/* empty */
-    {  $$ = nil_Features(); }
+    feature_list:
+        /* empty */ {  $$ = nil_Features(); }
+      | feature ';' feature_list { $$ = append_Features(single_Features($1), $3)}
+      ;
+    
+
+    feature :
+        OBJECTID '(' ')' ':' TYPEID '{' expression '}' { 
+          $$ = method($1, nil_Formals(), $5, $7); 
+        }
+      | OBJECTID '(' formal formal_list ')' ':' TYPEID '{' expression '}' {
+          $$ = method($1,
+            append_Formals(single_Formals($3), $4), $7, $9);
+        }
+      | OBJECTID ':' TYPEID { $$ = formal($1, $3, no_expr()); }
+      | OBJECTID ':' TYPEID ASSIGN expression { $$ = attr($1, $3, $5); }
+      ;
+    
+    formal : OBJECTID ':' TYPEID { $$ = formal($1, $3); };
+
+    formal_list :
+        /* empty list */ { $$ = nil_Formals(); }
+      | ',' formal formal_list { 
+          $$ = append_Formals(single_Formals($2), $3);
+        }
+      ;
+
+    expression_list :
+      /* empty list */ { $$ = nil_Expressions(); }
+    | expression {
+        $$ = single_Expressions($1);
+      }
+    | expression ',' expression_list {
+        $$ = append_Expressions(single_Expressions($1), $3);
+      }
+    ;
+
     
     
+
+    block_expression_list:
+        expression ';' {
+          $$ = single_Expressions($1);
+        }
+      | expression ';' expression_list {
+        $$ = append_Expressions(single_Expressions($1), $3);
+      }
+      ;
+
+
+    case:
+        OBJECTID ':' TYPEID DARROW expression ';' {
+          $$ = branch($1, $3, $5);
+        }
+
+    case_list:
+        case { $$ = single_Cases($1); }
+      | case case_list {
+          $$ = append_Cases(single_Cases($1), $2);
+        }
+      ;
+    
+    expression : 
+        OBJECTID ASSIGN expression { $$ = assign($1, $3); }
+      | expression '.' OBJECTID '(' expression_list ')' {
+        $$ = dispatch($1, $3, $5);
+      }
+      | expression '.' '@' TYPEID '.' OBJECTID '(' expression_list ')' {
+        $$ = static_dispatch($1, $4, $6, $8);
+      }
+      | IF expression THEN expression ELSE expression FI {
+        $$ = cond($2, $4, $6);
+      }
+      | WHILE expression LOOP expression POOL {
+        $$ = loop($2, $4);
+      }
+      | '{' block_expression_list '}' {
+        $$ = block($2);
+      }
+      | CASE expression OF case_list ESAC { $$ = typcase($2, $4); }
+      | NEW TYPEID { $$ = new_($2); }
+      | ISVOID expression { $$ = isvoid($2); }
+      | expression '+' expression { $$ = plus($1, $3); }
+      | expression '-' expression { $$ = sub($1, $3); }
+      | expression '*' expression { $$ = mul($1, $3); }
+      | expression '/' expression { $$ = divide($1, $3); }
+      | '~' expression { $$ = comp($2); }
+      | expression '<' expression { $$ = lt($1, $3); }
+      | expression LE expression { $$ = leq($1, $3); }
+      | expression '=' expression { $$ = eq($1, $3); }
+      | NOT expression { $$ = neg($2); }
+      | '(' expression ')' { $$ = $2; }
+      | OBJECTID { $$ = object($1); }
+      | INT_CONST { $$ = int_const($1); }
+      | STR_CONST { $$ = string_const($1); }
+      | BOOL_CONST { $$ = bool_const($1); }
+      ;
     /* end of grammar */
+
+    
     %%
     
     /* This function is called automatically when Bison detects a parse error. */

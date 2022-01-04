@@ -39,6 +39,9 @@ extern int verbose_flag;
 
 extern YYSTYPE cool_yylval;
 
+size_t comment_depth = 0;
+
+
 /*
  *  Add Your own definitions here
  */
@@ -72,6 +75,7 @@ ESAC            [eE][sS][aA][cC]
 NEW             [nN][eE][wW]
 OF              [oO][fF]
 DARROW          =>
+LE              <=
 NOT             [nN][oO][tT]
 TRUE            t[rR][uU][eE]
 INT_CONST       [0-9]+
@@ -115,7 +119,7 @@ STR_TERM        "\""
 
 <STR>"\\"\n       {
   ++curr_lineno;
-  if (string_buf_ptr - string_buf + 1 > MAX_STR_CONST) {
+  if (string_buf_ptr - string_buf + 2 > MAX_STR_CONST) {
     BEGIN(STRERROR);
     cool_yylval.error_msg = "String constant too long";
     return (ERROR);
@@ -126,6 +130,7 @@ STR_TERM        "\""
   ++curr_lineno;
   cool_yylval.error_msg = "Unterminated string constant";
   string_buf_ptr = string_buf;
+  BEGIN(INITIAL);
   return (ERROR); 
 }
 
@@ -142,7 +147,7 @@ STR_TERM        "\""
 
 
 <STR>"\\".   {
-  if (string_buf_ptr - string_buf + 1 > MAX_STR_CONST) {
+  if (string_buf_ptr - string_buf + 2 > MAX_STR_CONST) {
     BEGIN(STRERROR);
     cool_yylval.error_msg = "String constant too long";
     return (ERROR);
@@ -155,13 +160,17 @@ STR_TERM        "\""
     (*string_buf_ptr++) = '\n';
   } else if (yytext[1] == 'f') {
     (*string_buf_ptr++) = '\f';
+  } else if (yytext[1] == '\0') {
+    cool_yylval.error_msg = "String contains null character";
+    BEGIN(STRERROR);
+    return (ERROR);
   } else {
     (*string_buf_ptr++) = yytext[1];
   }
 }
 
 <STR>.                {
-  if (string_buf_ptr - string_buf + 1 > MAX_STR_CONST) {
+  if (string_buf_ptr - string_buf + 2 > MAX_STR_CONST) {
     BEGIN(STRERROR);
     cool_yylval.error_msg = "String constant too long";
     return (ERROR);
@@ -173,7 +182,9 @@ STR_TERM        "\""
 <STRERROR>{STR_TERM} {
   BEGIN(INITIAL);
 }
-<STRERROR>\n {}
+<STRERROR>\n {
+  BEGIN(INITIAL);
+}
 <STRERROR><<EOF>> { return 0; }
 <STRERROR>.  {}
 
@@ -193,8 +204,14 @@ STR_TERM        "\""
 <LINECMT>.       {}
 
 {START_CMT}          {
+  ++comment_depth;
   BEGIN(CMT);
 }
+
+<CMT>{START_CMT} {
+  ++comment_depth;
+}
+
 <CMT><<EOF>>         {
   BEGIN(INITIAL);
   cool_yylval.error_msg = "EOF in comment";
@@ -206,7 +223,9 @@ STR_TERM        "\""
 <CMT>.               {}
 
 <CMT>{END_CMT}       {
-  BEGIN(INITIAL);
+  if (--comment_depth == 0) {
+    BEGIN(INITIAL);
+  }
 }
 
 {END_CMT}            {
@@ -241,6 +260,7 @@ STR_TERM        "\""
 {OBJECTID}  { cool_yylval.symbol = stringtable.add_string(yytext); return (OBJECTID); }
 {LINE_END}  { ++curr_lineno; }
 {WHITESPACE} { }
+{LE}        { return (LE); }
 "+"         { return '+'; }
 "/"         { return '/'; }
 "-"         { return '-'; }

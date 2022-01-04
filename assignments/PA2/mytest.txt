@@ -1,0 +1,60 @@
+#name "mytest.cl"
+#1 CLASS
+#1 TYPEID Cell
+#1 '{'
+#2 OBJECTID number
+#2 '('
+#2 ')'
+#2 ':'
+#2 TYPEID Int
+#2 '{'
+#3 INT_CONST 0
+#4 '}'
+#4 ';'
+#5 '}'
+#7 CLASS
+#7 TYPEID Main
+#7 '{'
+#9 OBJECTID c
+#9 ':'
+#9 TYPEID Cell
+#9 ';'
+#10 OBJECTID attr
+#10 ':'
+#10 TYPEID Int
+#10 ASSIGN
+#10 OBJECTID c
+#10 '@'
+#10 TYPEID Cell
+#10 '.'
+#10 OBJECTID number
+#10 '('
+#10 ')'
+#10 ';'
+#12 OBJECTID main
+#12 '('
+#12 ')'
+#12 ':'
+#12 TYPEID SELF_TYPE
+#12 '{'
+#13 '{'
+#14 OBJECTID c
+#14 ASSIGN
+#14 '('
+#14 INT_CONST 1
+#14 '*'
+#14 INT_CONST 0
+#14 '+'
+#14 INT_CONST 7
+#14 '-'
+#14 '~'
+#14 INT_CONST 8
+#14 ')'
+#14 ';'
+#15 OBJECTID c
+#15 ';'
+#16 '}'
+#17 '}'
+#17 ';'
+#18 '}'
+#18 ';'

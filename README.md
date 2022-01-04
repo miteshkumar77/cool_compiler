@@ -1,9 +1,18 @@
 # cool_compiler
 
 Modified files:
+
 assignment 1:
-  - stack.cl
+```
+  - assignments/PA1/stack.cl
+```
+
 assignment 2:
-  - cool.flex
+```
+  - assignments/PA2/cool.flex
+```
+
 assignment 3:
-  - cool.y
+```
+  - assignments/PA3/cool.y
+```

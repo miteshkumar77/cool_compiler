@@ -82,17 +82,38 @@ static void initialize_constants(void)
     val         = idtable.add_string("_val");
 }
 
+void ClassTable::build_method_table() {
+    std::unordered_map<Symbol, method_class const*> methods;
+    build_method_table(methods, Object);
+}
 
+void ClassTable::build_method_table(std::unordered_map<Symbol,
+        method_class const*>& methods, Symbol class_node) {
+    
+    std::unordered_map<Symbol, method_class const*> methods_save = methods;
+    
+    Features features = sym_class.at(class_node)->get_features();
+
+    for (int i = 0; i < features->len(); ++i) {
+        Feature f = features->nth(i);
+        method_class const* m = dynamic_cast<method_class const*>(f);
+        if (m)
+            methods[m->get_name()] = m;
+    }
+
+    m_Table[class_node] = methods;
+    for (Symbol child_class : graph[class_node])
+        build_method_table(methods, child_class);
+    methods_save.swap(methods);
+}
 
 
 void reachable(std::unordered_map<Symbol, std::vector<Symbol>> const& graph, 
         std::unordered_set<Symbol>& visited, Symbol node) {
     if (visited.count(node)) return;
     visited.insert(node);
-    if (graph.count(node)) {
-        for (Symbol child : graph.at(node)) {
-            reachable(graph, visited, child);
-        }
+    for (Symbol child : graph.at(node)) {
+        reachable(graph, visited, child);
     }
 }
 
@@ -200,6 +221,15 @@ bool ClassTable::type_compare_exclusive(Symbol base_t, Symbol super_t) const {
 void ClassTable::add_edge(Symbol class_id, Symbol parent_id) {
     graph[parent_id].push_back(class_id);
     if (!graph.count(class_id)) graph[class_id] = std::vector<Symbol>();
+}
+
+void ClassTable::type_check() const {
+    ObjectEnv object_env;
+    type_check(object_env, Object);
+}
+
+void ClassTable::type_check(ObjectEnv& object_env, Symbol class_node) const {
+    
 }
 
 void ClassTable::install_basic_classes() {
@@ -367,11 +397,15 @@ void program_class::semant()
     /* ClassTable constructor may do some semantic analysis */
     ClassTable *classtable = new ClassTable(classes);
     classtable->check_hierarchy();
+    if (classtable->errors())
+        goto printerrors;
+    classtable->build_method_table();
     /* some semantic analysis code may go here */
 
-    if (classtable->errors()) {
-	cerr << "Compilation halted due to static semantic errors." << endl;
-	exit(1);
+    printerrors:
+        if (classtable->errors()) {
+        cerr << "Compilation halted due to static semantic errors." << endl;
+        exit(1);
     }
 }
 

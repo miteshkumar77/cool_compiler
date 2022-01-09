@@ -56,12 +56,18 @@ void dump_with_types(ostream&, int);
 
 #define Class__EXTRAS                   \
 virtual Symbol get_filename() = 0;      \
-virtual void dump_with_types(ostream&,int) = 0; 
-
+virtual void dump_with_types(ostream&,int) = 0; \
+virtual Symbol get_parent_name() const = 0; \
+virtual Symbol get_name() const = 0; \
+virtual Features get_features() const = 0;
 
 #define class__EXTRAS                                 \
 Symbol get_filename() { return filename; }             \
-void dump_with_types(ostream&,int);                    
+void dump_with_types(ostream&,int);                    \
+Symbol get_parent_name() const { return parent; } \
+Symbol get_name() const { return name; } \
+Features get_features() const { return features; }
+
 
 
 #define Feature_EXTRAS                                        \
@@ -76,11 +82,15 @@ void dump_with_types(ostream&,int);
 
 
 #define Formal_EXTRAS                              \
-virtual void dump_with_types(ostream&,int) = 0;
+virtual void dump_with_types(ostream&,int) = 0; \
+virtual Symbol get_name() const = 0; \
+virtual Symbol get_type_decl() const = 0;
 
 
 #define formal_EXTRAS                           \
-void dump_with_types(ostream&,int);
+void dump_with_types(ostream&,int); \
+Symbol get_name() const { return name; } \
+Symbol get_type_decl() const { return type_decl; }
 
 
 #define Case_EXTRAS                             \
@@ -102,4 +112,12 @@ Expression_class() { type = (Symbol) NULL; }
 #define Expression_SHARED_EXTRAS           \
 void dump_with_types(ostream&,int); 
 
+#define attr_EXTRAS \
+Symbol get_name() const { return name; } \
+Symbol get_type_decl() const { return type_decl; }
+
+#define method_EXTRAS \
+Symbol get_name() const { return name; } \
+Symbol get_return_type() const { return return_type; } \
+Formals get_formals() const { return formals; }
 #endif

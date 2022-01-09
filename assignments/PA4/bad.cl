@@ -10,13 +10,24 @@ class C {
 	};
 };
 
+class F inherits D {
+	fn(x : Int) : String {
+		""
+	};
+};
+
+class D {
+	
+	fn(x : Int) : String {
+		a
+	};
+	a : String <- "ABCD";
+};
+
 Class Main {
 	main():C {
 	 {
-	  (new C).init(1,1);
-	  (new C).init(1,true,3);
-	  (new C).iinit(1,true);
-	  (new C);
+	  (new C).init(1,true);
 	 }
 	};
 };

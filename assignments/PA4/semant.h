@@ -7,6 +7,9 @@
 #include "stringtab.h"
 #include "symtab.h"
 #include "list.h"
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 #define TRUE 1
 #define FALSE 0
@@ -21,14 +24,25 @@ typedef ClassTable *ClassTableP;
 
 class ClassTable {
 private:
-  int semant_errors;
+  mutable int semant_errors;
   void install_basic_classes();
+  std::unordered_map<Symbol, std::vector<Symbol>> graph;
+  std::unordered_map<Symbol, Class_> sym_class;
   ostream& error_stream;
-
 public:
   ClassTable(Classes);
   int errors() { return semant_errors; }
-  ostream& semant_error();
+  bool type_compare_inclusive(Symbol base_t, Symbol super_t) const;
+  bool type_compare_exclusive(Symbol base_t, Symbol super_t) const;
+  bool is_valid_overload(method_class const& base_method,
+      method_class const& super_method) const;
+  void check_hierarchy(
+        std::unordered_map<Symbol, method_class const*> methods,
+        std::unordered_set<Symbol> members,
+        Symbol class_node) const;
+  void check_hierarchy() const;
+  void add_edge(Symbol class_id, Symbol parent_id);
+  ostream& semant_error() const;
   ostream& semant_error(Class_ c);
   ostream& semant_error(Symbol filename, tree_node *t);
 };

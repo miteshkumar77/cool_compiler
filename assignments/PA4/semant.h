@@ -17,7 +17,6 @@
 class ClassTable;
 typedef ClassTable *ClassTableP;
 
-using ObjectEnv = SymbolTable<Symbol, Symbol>; 
 using MethodTable = std::unordered_map<Symbol,
             std::unordered_map<Symbol, method_class const*>>;
 
@@ -27,7 +26,7 @@ using MethodTable = std::unordered_map<Symbol,
 // methods.
 
 class ClassTable {
-private:
+public:
   mutable int semant_errors;
   void install_basic_classes();
   std::unordered_map<Symbol, std::vector<Symbol>> graph;
@@ -37,7 +36,6 @@ private:
   void build_method_table(std::unordered_map<Symbol, method_class const*>& methods,
     Symbol class_node);
   void type_check(ObjectEnv& object_env, Symbol class_node) const;
-public:
   ClassTable(Classes);
   int errors() { return semant_errors; }
   bool type_compare_inclusive(Symbol base_t, Symbol super_t) const;

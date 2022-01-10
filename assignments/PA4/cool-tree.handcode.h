@@ -107,17 +107,25 @@ Symbol get_type() { return type; }           \
 Expression set_type(Symbol s) { type = s; return this; } \
 virtual void dump_with_types(ostream&,int) = 0;  \
 void dump_type(ostream&, int);               \
-Expression_class() { type = (Symbol) NULL; }
+Expression_class() { type = (Symbol) NULL; } \
+virtual void check_type(Symbol class_node, ObjectEnv& object_env, \
+	ClassTable const& class_tbl) = 0;
 
 #define Expression_SHARED_EXTRAS           \
-void dump_with_types(ostream&,int); 
+void dump_with_types(ostream&,int);  \
+void check_type(Symbol class_node, ObjectEnv& object_env,\
+	ClassTable const& class_tbl) ;
 
 #define attr_EXTRAS \
 Symbol get_name() const { return name; } \
-Symbol get_type_decl() const { return type_decl; }
+Symbol get_type_decl() const { return type_decl; } \
+Expression get_init() const { return init; }
 
 #define method_EXTRAS \
 Symbol get_name() const { return name; } \
 Symbol get_return_type() const { return return_type; } \
-Formals get_formals() const { return formals; }
+Formals get_formals() const { return formals; } \
+Expression get_expr() const { return expr; }
+
+
 #endif

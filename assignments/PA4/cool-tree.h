@@ -11,11 +11,15 @@
 
 #include "tree.h"
 #include "cool-tree.handcode.h"
+#include "symtab.h"
 
 
 // define the class for phylum
 // define simple phylum - Program
 typedef class Program_class *Program;
+
+class ClassTable;
+using ObjectEnv = SymbolTable<Symbol, Symbol>; 
 
 class Program_class : public tree_node {
 public:

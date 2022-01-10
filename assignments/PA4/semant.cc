@@ -229,8 +229,156 @@ void ClassTable::type_check() const {
 }
 
 void ClassTable::type_check(ObjectEnv& object_env, Symbol class_node) const {
-    
+    object_env.enterscope();
+    Features features = sym_class.at(class_node)->get_features();
+    for (int i = 0; i < features->len(); ++i) {
+        Feature f = features->nth(i);
+        attr_class const* a = dynamic_cast<attr_class const*>(f);
+        if (a) object_env.addid(a->get_name(), a->get_type_decl());
+    }
+    for (int i = 0; i < features->len(); ++i) {
+        Feature f = features->nth(i);
+
+
+        attr_class const* a = dynamic_cast<attr_class const*>(f);
+        if (a) {
+            a->get_init()->check_type(class_node, object_env, *this);
+            if (a->get_init()->get_type() != a->get_type_decl())
+                semant_error() << "Invalid Type for Assignment" << std::endl;
+            continue;
+        }
+
+        method_class const* m = dynamic_cast<method_class const*>(f);
+        if (m) {
+            m->get_expr()->check_type(class_node, object_env, *this);
+            if (m->get_expr()->get_type() != m->get_return_type())
+                semant_error() << "Invalid Type for Method" << std::endl;
+        }
+    }
+    object_env.exitscope();
 }
+
+void assign_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+    expr->check_type(class_node, object_env, class_tbl);
+
+    if (class_tbl.type_compare_inclusive(expr->get_type(), object_env.lookup(name))) {
+        type = expr->get_type();
+    } else {
+        type = object_env.lookup(name);
+        class_tbl.semant_error() << "Invalid type for assignment" << std::endl;
+    }
+}
+
+void static_dispatch_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+void dispatch_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+void cond_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+void loop_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+
+void typcase_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+
+void block_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+
+void let_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+
+void plus_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+
+void sub_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+void mul_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+
+void divide_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+void neg_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+
+void lt_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+
+void eq_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+
+void leq_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+
+void comp_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+
+void int_const_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+    type = Int;
+}
+
+void bool_const_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+    type = Bool; 
+}
+
+void string_const_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+    type = Str;
+}
+
+void new__class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+
+void isvoid_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+void no_expr_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+
+}
+
+void object_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
+    Symbol decl_type = object_env.lookup(name);
+    if (decl_type == nullptr) {
+        class_tbl.semant_error() << "Undefined object identifier " << name << std::endl;
+        type = No_type;
+    } else {
+        type = decl_type;
+    }
+}
+
 
 void ClassTable::install_basic_classes() {
 
@@ -400,6 +548,7 @@ void program_class::semant()
     if (classtable->errors())
         goto printerrors;
     classtable->build_method_table();
+    classtable->type_check(); 
     /* some semantic analysis code may go here */
 
     printerrors:

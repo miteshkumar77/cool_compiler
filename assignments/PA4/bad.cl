@@ -1,4 +1,4 @@
-class C {
+(*class C {
 	a : Int;
 	b : Bool;
 	init(x : Int, y : Bool) : C {
@@ -29,5 +29,11 @@ Class Main {
 	 {
 	  (new C).init(1,true);
 	 }
+	};
+};*)
+
+class Main {
+	main() : Object {
+		1
 	};
 };

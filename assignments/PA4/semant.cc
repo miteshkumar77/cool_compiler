@@ -275,10 +275,42 @@ void static_dispatch_class::check_type(Symbol class_node, ObjectEnv& object_env,
 
 void dispatch_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
 
+    expr->check_type(class_node, object_env, class_tbl);
+    for (int i= 0; i < actual->len(); ++i)
+        actual->nth(i)->check_type(class_node, object_env, class_tbl);
+
+    Symbol call_type = (expr->get_type() == SELF_TYPE ? class_node : expr->get_type());
+    if (!class_tbl.m_Table.at(call_type).count(name)) {
+        class_tbl.semant_error() << "Undefined reference to method in dispatch" << std::endl;
+        return;
+    }
+
+    method_class const* ref_method = class_tbl.m_Table.at(call_type).at(name);   
+    if (ref_method->get_formals()->len() != actual->len()) {
+        class_tbl.semant_error() << "Incorrect number of arguments in method dispatch" << std::endl;
+        return;
+    }
+
+    for (int i = 0; i <= actual->len(); ++i) {
+        if (i < actual->len()) {
+            if (!class_tbl.type_compare_inclusive(ref_method->get_formals()->nth(i)->get_type_decl(),
+                    actual->nth(i)->get_type())) {
+                class_tbl.semant_error() << "Incompatible argument type in method dispatch" << std::endl;
+            }
+        }
+    }
+
+    type = ref_method->get_return_type() == SELF_TYPE ? expr->get_type() : ref_method->get_return_type();
 }
 
 void cond_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
-
+    pred->check_type(class_node, object_env, class_tbl);
+    if (pred->get_type() != Bool) {
+        class_tbl.semant_error() << "If predicate expression type must be Boolean" << std::endl;
+    }
+    then_exp->check_type(class_node, object_env, class_tbl);
+    else_exp->check_type(class_node, object_env, class_tbl);
+    type = class_tbl.lowest_common_ancestor({then_exp->get_type(), else_exp->get_type()});
 }
 
 void loop_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
@@ -357,7 +389,12 @@ void string_const_class::check_type(Symbol class_node, ObjectEnv& object_env, Cl
 }
 
 void new__class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTable const& class_tbl) {
-
+    if (type_name == SELF_TYPE) {
+        type = class_node;
+        // type = SELF_TYPE;
+    } else {
+        type = type_name;
+    }
 }
 
 
@@ -377,6 +414,24 @@ void object_class::check_type(Symbol class_node, ObjectEnv& object_env, ClassTab
     } else {
         type = decl_type;
     }
+}
+
+Symbol ClassTable::lowest_common_ancestor(std::unordered_set<Symbol> const& classes) const {
+    std::unordered_set<Symbol> classes_save(classes);
+    return lowest_common_ancestor(classes_save, Object);
+}
+
+Symbol ClassTable::lowest_common_ancestor(std::unordered_set<Symbol>& classes, Symbol class_node) const {
+    if (classes.count(class_node)) {
+        classes.erase(class_node);
+        if (classes.empty())
+            return class_node;
+    }
+    for (Symbol child_class : graph.at(class_node)) {
+        Symbol lca = lowest_common_ancestor(classes, child_class);
+        if (lca) return lca;
+    }
+    return classes.empty() ? class_node : nullptr;
 }
 
 

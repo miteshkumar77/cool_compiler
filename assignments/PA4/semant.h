@@ -35,6 +35,9 @@ public:
   MethodTable m_Table;
   void build_method_table(std::unordered_map<Symbol, method_class const*>& methods,
     Symbol class_node);
+  
+  Symbol lowest_common_ancestor(std::unordered_set<Symbol> const& classes) const;
+  Symbol lowest_common_ancestor(std::unordered_set<Symbol>& classes, Symbol class_node) const;
   void type_check(ObjectEnv& object_env, Symbol class_node) const;
   ClassTable(Classes);
   int errors() { return semant_errors; }

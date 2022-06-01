@@ -2,8 +2,12 @@
 #define SEMANT_H_
 
 #include <assert.h>
-#include <iostream>  
+#include <iostream>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 #include "cool-tree.h"
+#include "tree.h"
 #include "stringtab.h"
 #include "symtab.h"
 #include "list.h"
@@ -14,25 +18,45 @@
 class ClassTable;
 typedef ClassTable *ClassTableP;
 
+using MethodTable = std::unordered_map<Symbol,
+                                       std::unordered_map<Symbol, method_class const *>>;
+
 // This is a structure that may be used to contain the semantic
 // information such as the inheritance graph.  You may use it or not as
 // you like: it is only here to provide a container for the supplied
 // methods.
 
-class ClassTable {
+inline void halt(ClassTable const *classtable);
+
+class ClassTable
+{
+  friend class tree_node;
+
 private:
-  int semant_errors;
+  mutable int semant_errors;
   void install_basic_classes();
-  ostream& error_stream;
+  inline void add_edge(Symbol class_id, Symbol parent_id);
+  ostream &error_stream;
+
+  std::unordered_map<Symbol, std::vector<Symbol>> graph;
+  std::unordered_map<Symbol, Class_> sym_class;
+  MethodTable m_Table;
 
 public:
   ClassTable(Classes);
-  int errors() { return semant_errors; }
-  ostream& semant_error();
-  ostream& semant_error(Class_ c);
-  ostream& semant_error(Symbol filename, tree_node *t);
+  int errors() const { return semant_errors; }
+  void check_hierarchy() const;
+  void check_hierarchy(
+      std::unordered_map<Symbol, method_class const *> methods,
+      std::unordered_set<Symbol> members,
+      Symbol class_node) const;
+  ostream &semant_error() const;
+  ostream &semant_error(Class_ c);
+  ostream &semant_error(Symbol filename, tree_node *t);
+  bool type_lte(Symbol base_t, Symbol super_t) const;
+  bool type_lt(Symbol base_t, Symbol super_t) const;
+  Symbol lca(std::unordered_set<Symbol> const &classes) const;
+  Symbol lca(std::unordered_set<Symbol> &classes, Symbol class_node) const;
 };
 
-
 #endif
-

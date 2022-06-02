@@ -27,6 +27,7 @@ using MethodTable = std::unordered_map<Symbol,
 // methods.
 
 inline void halt(ClassTable const *classtable);
+inline void add_object(Symbol id, Symbol type, ObjectEnv &object_env, ClassTable const &class_tbl);
 
 class ClassTable
 {

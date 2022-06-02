@@ -269,16 +269,58 @@ void cond_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable
 }
 void loop_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    pred->check_type(class_node, object_env, class_tbl);
+    if (pred->get_type() != Bool)
+    {
+        class_tbl.semant_error() << "Loop predicate was not of type Boolean" << std::endl;
+        halt();
+    }
+    body->check_type(class_node, object_env, class_tbl);
+    type = Object;
 }
 void typcase_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
 }
+
 void block_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    for (int i = 0; i < body->len(); ++i)
+    {
+        body->nth(i)->check_type(class_node, object_env, class_tbl);
+    }
+    type = body->nth(body->len() - 1)->get_type();
 }
 
 void let_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+
+    if (init)
+    {
+        auto T_0p{type_decl == SELF_TYPE ? class_node : type_decl};
+        init->check_type(class_node, object_env, class_tbl);
+        auto T_1{init->get_type()};
+        if (!class_tbl.type_lte(T_0p, T_1))
+        {
+            class_tbl.semant_error() << "Incompatible types for let initialization" << std::endl;
+            halt();
+        }
+        object_env.enterscope();
+        add_object(identifier, T_0p, object_env, class_tbl);
+        body->check_type(class_node, object_env, class_tbl);
+        auto T_2 = body->get_type();
+        set_type(T_2);
+        object_env.exitscope();
+    }
+    else
+    {
+        auto T_0p{type_decl == SELF_TYPE ? class_node : type_decl};
+        object_env.enterscope();
+        add_object(identifier, T_0p, object_env, class_tbl);
+        body->check_type(class_node, object_env, class_tbl);
+        auto T_1 = body->get_type();
+        set_type(T_1);
+        object_env.exitscope();
+    }
 }
 
 void plus_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
@@ -493,6 +535,16 @@ ostream &ClassTable::semant_error() const
 {
     semant_errors++;
     return error_stream;
+}
+
+inline void add_object(Symbol id, Symbol type, ObjectEnv &object_env, ClassTable const &class_tbl)
+{
+    if (object_env.probe(id))
+    {
+        class_tbl.semant_error() << "Illegal redefinition of variable." << std::endl;
+        halt();
+    }
+    object_env.addid(id, type);
 }
 
 inline void halt()

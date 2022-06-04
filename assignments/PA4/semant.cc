@@ -191,19 +191,19 @@ void ClassTable::check_hierarchy(
     members.swap(members_save);
 }
 
-bool ClassTable::type_lte(Symbol base_t, Symbol super_t) const
+bool ClassTable::type_lte(Symbol sub_t, Symbol super_t) const
 {
-    if (base_t == super_t)
+    if (sub_t == super_t)
         return true;
-    else if (base_t == Object)
+    else if (sub_t == Object)
         return false;
     else
-        return type_lte(sym_class.at(base_t)->get_parent_name(), super_t);
+        return type_lte(sym_class.at(sub_t)->get_parent_name(), super_t);
 }
 
-bool ClassTable::type_lt(Symbol base_t, Symbol super_t) const
+bool ClassTable::type_lt(Symbol sub_t, Symbol super_t) const
 {
-    return base_t != super_t && type_lte(base_t, super_t);
+    return sub_t != super_t && type_lte(sub_t, super_t);
 }
 
 Symbol ClassTable::lca(std::unordered_set<Symbol> const &classes) const
@@ -231,12 +231,12 @@ Symbol ClassTable::lca(std::unordered_set<Symbol> &classes, Symbol class_node) c
 
 void assign_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
-    auto T = object_env.lookup(name);
+    auto T = reference_object(name, object_env, class_tbl);
     expr->check_type(class_node, object_env, class_tbl);
     auto Tp = expr->get_type();
     if (class_tbl.type_lte(Tp, T))
     {
-        type = expr->get_type();
+        set_type(expr->get_type());
     }
     else
     {
@@ -267,6 +267,7 @@ void cond_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable
     auto T3 = else_exp->get_type();
     type = class_tbl.lca({T2, T3});
 }
+
 void loop_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
     pred->check_type(class_node, object_env, class_tbl);
@@ -278,8 +279,33 @@ void loop_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable
     body->check_type(class_node, object_env, class_tbl);
     type = Object;
 }
+
+void branch_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
+{
+    object_env.enterscope();
+    object_env.addid(name, type_decl);
+    expr->check_type(class_node, object_env, class_tbl);
+    object_env.exitscope();
+}
+
 void typcase_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    std::unordered_set<Symbol> decl_types;
+    std::unordered_set<Symbol> output_types;
+    expr->check_type(class_node, object_env, class_tbl);
+    for (int i = 0; i < cases->len(); ++i)
+    {
+        cases->nth(i)->check_type(class_node, object_env, class_tbl);
+        auto Ti = cases->nth(i)->get_type_decl();
+        if (decl_types.count(Ti))
+        {
+            class_tbl.semant_error() << "Non-unique type declaration in typcase." << std::endl;
+            halt();
+        }
+        decl_types.insert(Ti);
+        output_types.insert(cases->nth(i)->get_expr()->get_type());
+    }
+    set_type(class_tbl.lca(output_types));
 }
 
 void block_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
@@ -299,7 +325,7 @@ void let_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable 
         auto T_0p{type_decl == SELF_TYPE ? class_node : type_decl};
         init->check_type(class_node, object_env, class_tbl);
         auto T_1{init->get_type()};
-        if (!class_tbl.type_lte(T_0p, T_1))
+        if (!class_tbl.type_lte(T_1, T_0p))
         {
             class_tbl.semant_error() << "Incompatible types for let initialization" << std::endl;
             halt();
@@ -545,6 +571,17 @@ inline void add_object(Symbol id, Symbol type, ObjectEnv &object_env, ClassTable
         halt();
     }
     object_env.addid(id, type);
+}
+
+inline Symbol reference_object(Symbol id, ObjectEnv &object_env, ClassTable const &class_tbl)
+{
+    auto T = object_env.lookup(id);
+    if (!T)
+    {
+        class_tbl.semant_error() << "Reference to undefined object identifier." << std::endl;
+        halt();
+    }
+    return T;
 }
 
 inline void halt()

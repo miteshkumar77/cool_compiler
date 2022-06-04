@@ -84,8 +84,13 @@ typedef Cases_class *Cases;
 	Symbol get_name() const { return name; } \
 	Symbol get_type_decl() const { return type_decl; }
 
-#define Case_EXTRAS \
-	virtual void dump_with_types(ostream &, int) = 0;
+#define Case_EXTRAS                                                   \
+	virtual void dump_with_types(ostream &, int) = 0;                 \
+	virtual void check_type(Symbol class_node, ObjectEnv &object_env, \
+							ClassTable const &class_tbl) = 0;         \
+	virtual Symbol get_name() const = 0;                              \
+	virtual Symbol get_type_decl() const = 0;                         \
+	virtual Expression get_expr() const = 0;
 
 #define branch_EXTRAS \
 	void dump_with_types(ostream &, int);
@@ -119,5 +124,12 @@ typedef Cases_class *Cases;
 	Symbol get_return_type() const { return return_type; } \
 	Formals get_formals() const { return formals; }        \
 	Expression get_expr() const { return expr; }
+
+#define Case_SHARED_EXTRAS                                    \
+	void check_type(Symbol class_node, ObjectEnv &object_env, \
+					ClassTable const &class_tbl);             \
+	Symbol get_name() const;                                  \
+	Symbol get_type_decl() const;                             \
+	Expression get_expr() const;
 
 #endif

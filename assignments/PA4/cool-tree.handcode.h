@@ -68,11 +68,13 @@ typedef Cases_class *Cases;
 	Symbol get_name() const { return name; }          \
 	Features get_features() const { return features; }
 
-#define Feature_EXTRAS \
-	virtual void dump_with_types(ostream &, int) = 0;
+#define Feature_EXTRAS                                \
+	virtual void dump_with_types(ostream &, int) = 0; \
+	virtual void check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl) = 0;
 
-#define Feature_SHARED_EXTRAS \
-	void dump_with_types(ostream &, int);
+#define Feature_SHARED_EXTRAS             \
+	void dump_with_types(ostream &, int); \
+	void check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl);
 
 #define Formal_EXTRAS                                 \
 	virtual void dump_with_types(ostream &, int) = 0; \

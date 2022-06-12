@@ -41,7 +41,6 @@ private:
 
   std::unordered_map<Symbol, std::vector<Symbol>> graph;
   std::unordered_map<Symbol, Class_> sym_class;
-  MethodTable m_Table;
 
 public:
   ClassTable(Classes);
@@ -58,6 +57,11 @@ public:
   bool type_lt(Symbol base_t, Symbol super_t) const;
   Symbol lca(std::unordered_set<Symbol> const &classes) const;
   Symbol lca(std::unordered_set<Symbol> &classes, Symbol class_node) const;
+
+  void check_type();
+  void check_type(ObjectEnv &object_env, Symbol class_node);
+
+  MethodTable m_Table;
 };
 
 #endif

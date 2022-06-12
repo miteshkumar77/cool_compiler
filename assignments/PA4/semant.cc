@@ -251,7 +251,36 @@ void static_dispatch_class::check_type(Symbol class_node, ObjectEnv &object_env,
 
 void dispatch_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    expr->check_type(class_node, object_env, class_tbl);
+    auto T_0 = expr->get_type();
+    std::vector<Symbol> T;
+    T.reserve(actual->len());
+    for (int i = 0; i < actual->len(); ++i)
+    {
+        auto e_i = actual->nth(i);
+        e_i->check_type(class_node, object_env, class_tbl);
+        T.push_back(e_i->get_type());
+    }
+    auto T_0p = T_0 == SELF_TYPE ? class_node : T_0;
+    method_class const *m_ptr = class_tbl.m_Table.at(T_0p).at(name);
+    if (m_ptr->get_formals()->len() != (T.size() + 1)) // This '+ 1' might be wrong
+    {
+        class_tbl.semant_error() << "Invalid argument count for dispatch." << std::endl;
+        halt();
+    }
+    for (int i = 0; i < T.size(); ++i)
+    {
+        if (!class_tbl.type_lt(T[i], m_ptr->get_formals()->nth(i)->get_type_decl()))
+        {
+            class_tbl.semant_error() << "Incompatible argument type for dispatch." << std::endl;
+            halt();
+        }
+    }
+    auto T_n1p = m_ptr->get_formals()->nth(T.size())->get_type_decl();
+    auto T_n1 = (T_n1p == SELF_TYPE ? T_0 : T_n1p);
+    set_type(T_n1);
 }
+
 void cond_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
     pred->check_type(class_node, object_env, class_tbl);
@@ -409,6 +438,14 @@ void no_expr_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTa
 }
 
 void object_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
+{
+}
+
+void attr_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
+{
+}
+
+void method_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
 }
 
@@ -598,7 +635,28 @@ inline void halt(ClassTable const *classtable)
         exit(1);
     }
 }
+void ClassTable::check_type()
+{
+    ObjectEnv object_env;
+    check_type(object_env, Object);
+}
+void ClassTable::check_type(ObjectEnv &object_env, Symbol class_node)
+{
+    object_env.enterscope();
+    Features features = sym_class.at(class_node)->get_features();
+    for (int i = 0; i < features->len(); ++i)
+    {
+        if (attr_class const *a = dynamic_cast<attr_class const *>(features->nth(i)); a)
+        {
+            add_object(a->get_name(), a->get_type_decl(), object_env, *this);
+        }
+    }
 
+    for (int i = 0; i < features->len(); ++i)
+    {
+        Feature f = features->nth(i);
+    }
+}
 /*   This is the entry point to the semantic checker.
 
      Your checker should do the following two things:

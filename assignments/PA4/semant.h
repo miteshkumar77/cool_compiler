@@ -26,8 +26,12 @@ using MethodTable = std::unordered_map<Symbol,
 // you like: it is only here to provide a container for the supplied
 // methods.
 
+inline void halt();
 inline void halt(ClassTable const *classtable);
 inline void add_object(Symbol id, Symbol type, ObjectEnv &object_env, ClassTable const &class_tbl);
+inline Symbol reference_object(Symbol id, ObjectEnv &object_env, ClassTable const &class_tbl);
+inline method_class const *reference_method(Symbol C, Symbol f, ClassTable const &class_tbl);
+inline void add_method(Symbol C, Symbol f, ClassTable &class_tbl, method_class const *m);
 
 class ClassTable
 {
@@ -40,7 +44,6 @@ private:
   ostream &error_stream;
 
   std::unordered_map<Symbol, std::vector<Symbol>> graph;
-  std::unordered_map<Symbol, Class_> sym_class;
 
 public:
   ClassTable(Classes);
@@ -62,6 +65,7 @@ public:
   void check_type(ObjectEnv &object_env, Symbol class_node);
 
   MethodTable m_Table;
+  std::unordered_map<Symbol, Class_> sym_class;
 };
 
 #endif

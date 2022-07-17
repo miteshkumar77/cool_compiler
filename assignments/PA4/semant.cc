@@ -447,6 +447,7 @@ void attr_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable
 
 void method_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    auto M = reference_method(class_node, name, class_tbl);
 }
 
 inline void ClassTable::add_edge(Symbol class_id, Symbol parent_id)
@@ -621,9 +622,38 @@ inline Symbol reference_object(Symbol id, ObjectEnv &object_env, ClassTable cons
     return T;
 }
 
+inline method_class const *reference_method(Symbol C, Symbol f, ClassTable const &class_tbl)
+{
+    if (class_tbl.m_Table.count(C) &&
+        class_tbl.m_Table.at(C).count(f))
+    {
+        return class_tbl.m_Table.at(C).at(f);
+    }
+    if (C == Object)
+    {
+        class_tbl.semant_error() << "Reference to undefined method." << std::endl;
+
+        halt();
+        return nullptr;
+    }
+    return reference_method(class_tbl.sym_class.at(C)->get_parent_name(), f, class_tbl);
+}
+
+inline void add_method(Symbol C, Symbol f, ClassTable &class_tbl, method_class const *m)
+{
+    if (class_tbl.m_Table.count(C) &&
+        class_tbl.m_Table.at(C).count(f))
+    {
+        class_tbl.semant_error() << "Redefinition of method in same class." << std::endl;
+
+        halt();
+    }
+    class_tbl.m_Table[C][f] = m;
+}
+
 inline void halt()
 {
-    cerr << "Compilation halted due to static semantic errors." << endl;
+    cerr << "Compilation halted due to static semantic errors." << std::endl;
     exit(1);
 }
 
@@ -631,7 +661,7 @@ inline void halt(ClassTable const *classtable)
 {
     if (classtable->errors())
     {
-        cerr << "Compilation halted due to static semantic errors." << endl;
+        cerr << "Compilation halted due to static semantic errors." << std::endl;
         exit(1);
     }
 }
@@ -646,7 +676,7 @@ void ClassTable::check_type(ObjectEnv &object_env, Symbol class_node)
     Features features = sym_class.at(class_node)->get_features();
     for (int i = 0; i < features->len(); ++i)
     {
-        if (attr_class const *a = dynamic_cast<attr_class const *>(features->nth(i)); a)
+        if (attr_class *a = dynamic_cast<attr_class *>(features->nth(i)); a)
         {
             add_object(a->get_name(), a->get_type_decl(), object_env, *this);
         }
@@ -655,7 +685,23 @@ void ClassTable::check_type(ObjectEnv &object_env, Symbol class_node)
     for (int i = 0; i < features->len(); ++i)
     {
         Feature f = features->nth(i);
+        if (method_class const *m = dynamic_cast<method_class const *>(f); m)
+        {
+            add_method(class_node, m->get_name(), *this, m);
+        }
     }
+
+    for (int i = 0; i < features->len(); ++i)
+    {
+        Feature f = features->nth(i);
+        f->check_type(class_node, object_env, *this);
+    }
+
+    for (Symbol child : graph.at(class_node))
+    {
+        check_type(object_env, child);
+    }
+    object_env.exitscope();
 }
 /*   This is the entry point to the semantic checker.
 
@@ -670,6 +716,7 @@ void ClassTable::check_type(ObjectEnv &object_env, Symbol class_node)
      errors. Part 2) can be done in a second stage, when you want
      to build mycoolc.
  */
+
 void program_class::semant()
 {
     initialize_constants();

@@ -130,8 +130,8 @@ typedef Cases_class *Cases;
 #define Case_SHARED_EXTRAS                                    \
 	void check_type(Symbol class_node, ObjectEnv &object_env, \
 					ClassTable const &class_tbl);             \
-	Symbol get_name() const;                                  \
-	Symbol get_type_decl() const;                             \
-	Expression get_expr() const;
+	Symbol get_name() const { return name; };                 \
+	Symbol get_type_decl() const { return type_decl; };       \
+	Expression get_expr() const { return expr; };
 
 #endif

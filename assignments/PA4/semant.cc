@@ -80,11 +80,14 @@ static void initialize_constants(void)
     val = idtable.add_string("_val");
 }
 
+inline bool is_dfl_class(Symbol class_name) { return class_name == Object || class_name == IO || class_name == Int || class_name == Bool || class_name == Str; }
+
 void reachable(std::unordered_map<Symbol, std::vector<Symbol>> const &graph,
                std::unordered_set<Symbol> &visited, Symbol node)
 {
     if (visited.count(node))
         return;
+    visited.insert(node);
     for (Symbol child : graph.at(node))
     {
         reachable(graph, visited, child);
@@ -100,7 +103,7 @@ ClassTable::ClassTable(Classes def_classes) : semant_errors(0), error_stream(cer
         Class_ cur_class = def_classes->nth(i);
         if (sym_class.count(cur_class->get_name()))
         {
-            semant_error() << "Redefinition of class " << cur_class->get_name() << std::endl;
+            semant_error(cur_class) << "Redefinition of class " << cur_class->get_name() << std::endl;
             return;
         }
         sym_class[cur_class->get_name()] = cur_class;
@@ -140,7 +143,7 @@ void ClassTable::check_hierarchy(
         {
             if (members.count(a->get_name()))
             {
-                semant_error() << "Redefinition of attribute " << a->get_name() << " in class " << class_node << std::endl;
+                semant_error(class_node) << "Redefinition of attribute " << a->get_name() << " in class " << class_node << std::endl;
             }
             else
             {
@@ -154,14 +157,14 @@ void ClassTable::check_hierarchy(
                 method_class const *m_ref = methods.at(m->get_name());
                 if (m->get_return_type() != m_ref->get_return_type())
                 {
-                    semant_error() << "Invalid method overload return type" << std::endl;
+                    semant_error(class_node) << "Invalid method overload return type" << std::endl;
                     continue;
                 }
                 Formals formals = m->get_formals();
                 Formals formals_ref = m_ref->get_formals();
                 if (formals->len() != formals_ref->len())
                 {
-                    semant_error() << "Invalid method overload argument count" << std::endl;
+                    semant_error(class_node) << "Invalid method overload argument count" << std::endl;
                     continue;
                 }
 
@@ -171,7 +174,7 @@ void ClassTable::check_hierarchy(
                     Formal formal_ref = formals_ref->nth(j);
                     if (formal->get_type_decl() != formal_ref->get_type_decl())
                     {
-                        semant_error() << "Invalid method overload argument type" << std::endl;
+                        semant_error(class_node) << "Invalid method overload argument type" << std::endl;
                         break;
                     }
                 }
@@ -231,7 +234,7 @@ Symbol ClassTable::lca(std::unordered_set<Symbol> &classes, Symbol class_node) c
 
 void assign_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
-    auto T = reference_object(name, object_env, class_tbl);
+    auto T = reference_object(class_node, name, object_env, class_tbl);
     expr->check_type(class_node, object_env, class_tbl);
     auto Tp = expr->get_type();
     if (class_tbl.type_lte(Tp, T))
@@ -240,13 +243,41 @@ void assign_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTab
     }
     else
     {
-        class_tbl.semant_error() << "Invalid type for assignment." << std::endl;
+        class_tbl.semant_error(class_node) << "Invalid type for assignment." << std::endl;
         halt();
     }
 }
 
 void static_dispatch_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    expr->check_type(class_node, object_env, class_tbl);
+    auto T_0 = expr->get_type();
+    std::vector<Symbol> T1n;
+    T1n.reserve(actual->len());
+    for (int i = 0; i < actual->len(); ++i)
+    {
+        auto e_i = actual->nth(i);
+        e_i->check_type(class_node, object_env, class_tbl);
+        T1n.push_back(e_i->get_type());
+    }
+
+    if (!class_tbl.type_lte(T_0, type_name))
+    {
+        class_tbl.semant_error(class_node) << "Invalid type name for static dispatch" << std::endl;
+        halt();
+    }
+
+    auto Mp = reference_method(class_node, type_name, name, class_tbl);
+    for (int i = 0; i < Mp->get_formals()->len(); ++i)
+    {
+        if (!class_tbl.type_lte(T1n[i], Mp->get_formals()->nth(i)->get_type_decl()))
+        {
+            class_tbl.semant_error(class_node) << "Incompatible argument type for static dispatch" << std::endl;
+            halt();
+        }
+    }
+    auto Tpn1 = Mp->get_formals()->nth((int)T1n.size() - 1)->get_type_decl();
+    set_type(Tpn1 == SELF_TYPE ? T_0 : Tpn1);
 }
 
 void dispatch_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
@@ -262,21 +293,23 @@ void dispatch_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassT
         T.push_back(e_i->get_type());
     }
     auto T_0p = T_0 == SELF_TYPE ? class_node : T_0;
-    method_class const *m_ptr = class_tbl.m_Table.at(T_0p).at(name);
-    if (m_ptr->get_formals()->len() != (T.size() + 1)) // This '+ 1' might be wrong
+    // method_class const *m_ptr = class_tbl.m_Table.at(T_0p).at(name);
+    auto m_ptr = reference_method(class_node, T_0p, name, class_tbl);
+    if (m_ptr->get_formals()->len() != (T.size())) // This '+ 1' might be wrong
     {
-        class_tbl.semant_error() << "Invalid argument count for dispatch." << std::endl;
+        class_tbl.semant_error(class_node) << "Invalid argument count for dispatch." << std::endl;
         halt();
     }
+
     for (int i = 0; i < T.size(); ++i)
     {
         if (!class_tbl.type_lt(T[i], m_ptr->get_formals()->nth(i)->get_type_decl()))
         {
-            class_tbl.semant_error() << "Incompatible argument type for dispatch." << std::endl;
+            class_tbl.semant_error(class_node) << "Incompatible argument type for dispatch." << std::endl;
             halt();
         }
     }
-    auto T_n1p = m_ptr->get_formals()->nth(T.size())->get_type_decl();
+    auto T_n1p = m_ptr->get_formals()->len() ? m_ptr->get_formals()->nth(T.size())->get_type_decl(): ;
     auto T_n1 = (T_n1p == SELF_TYPE ? T_0 : T_n1p);
     set_type(T_n1);
 }
@@ -286,7 +319,7 @@ void cond_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable
     pred->check_type(class_node, object_env, class_tbl);
     if (pred->get_type() != Bool)
     {
-        class_tbl.semant_error() << "Predicate type must be Bool" << std::endl;
+        class_tbl.semant_error(class_node) << "Predicate type must be Bool" << std::endl;
         halt();
     }
     then_exp->check_type(class_node, object_env, class_tbl);
@@ -302,7 +335,7 @@ void loop_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable
     pred->check_type(class_node, object_env, class_tbl);
     if (pred->get_type() != Bool)
     {
-        class_tbl.semant_error() << "Loop predicate was not of type Boolean" << std::endl;
+        class_tbl.semant_error(class_node) << "Loop predicate was not of type Boolean" << std::endl;
         halt();
     }
     body->check_type(class_node, object_env, class_tbl);
@@ -328,7 +361,7 @@ void typcase_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTa
         auto Ti = cases->nth(i)->get_type_decl();
         if (decl_types.count(Ti))
         {
-            class_tbl.semant_error() << "Non-unique type declaration in typcase." << std::endl;
+            class_tbl.semant_error(class_node) << "Non-unique type declaration in typcase." << std::endl;
             halt();
         }
         decl_types.insert(Ti);
@@ -356,11 +389,11 @@ void let_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable 
         auto T_1{init->get_type()};
         if (!class_tbl.type_lte(T_1, T_0p))
         {
-            class_tbl.semant_error() << "Incompatible types for let initialization" << std::endl;
+            class_tbl.semant_error(class_node) << "Incompatible types for let initialization" << std::endl;
             halt();
         }
         object_env.enterscope();
-        add_object(identifier, T_0p, object_env, class_tbl);
+        add_object(class_node, identifier, T_0p, object_env, class_tbl);
         body->check_type(class_node, object_env, class_tbl);
         auto T_2 = body->get_type();
         set_type(T_2);
@@ -370,7 +403,7 @@ void let_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable 
     {
         auto T_0p{type_decl == SELF_TYPE ? class_node : type_decl};
         object_env.enterscope();
-        add_object(identifier, T_0p, object_env, class_tbl);
+        add_object(class_node, identifier, T_0p, object_env, class_tbl);
         body->check_type(class_node, object_env, class_tbl);
         auto T_1 = body->get_type();
         set_type(T_1);
@@ -378,76 +411,190 @@ void let_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable 
     }
 }
 
+void arith_type_check(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl,
+                      Expression e1, Expression e2)
+{
+    e1->check_type(class_node, object_env, class_tbl);
+    e2->check_type(class_node, object_env, class_tbl);
+    if (e1->get_type() != Int)
+    {
+        class_tbl.semant_error(class_node) << "Type of left arith argument not Int." << std::endl;
+    }
+
+    if (e2->get_type() != Int)
+    {
+        class_tbl.semant_error(class_node) << "Type of right arith argument not Int." << std::endl;
+    }
+}
+
 void plus_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    arith_type_check(class_node, object_env, class_tbl, e1, e2);
+    set_type(Int);
 }
 
 void sub_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    arith_type_check(class_node, object_env, class_tbl, e1, e2);
+    set_type(Int);
 }
 
 void mul_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    arith_type_check(class_node, object_env, class_tbl, e1, e2);
+    set_type(Int);
 }
 
 void divide_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    arith_type_check(class_node, object_env, class_tbl, e1, e2);
+    set_type(Int);
 }
 
 void neg_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    e1->check_type(class_node, object_env, class_tbl);
+    if (e1->get_type() != Int)
+    {
+        class_tbl.semant_error(class_node) << "Argument for Negation not Int." << std::endl;
+    }
+    set_type(Int);
+}
+
+void compare_type_check(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl, Expression e1, Expression e2)
+{
+    e1->check_type(class_node, object_env, class_tbl);
+    e2->check_type(class_node, object_env, class_tbl);
+    if (e1->get_type() != Int)
+    {
+        class_tbl.semant_error(class_node) << "Left argument for Comparison not Int." << std::endl;
+    }
+    if (e2->get_type() != Int)
+    {
+        class_tbl.semant_error(class_node) << "Right argument for Comparison not Int." << std::endl;
+    }
 }
 
 void lt_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    compare_type_check(class_node, object_env, class_tbl, e1, e2);
+    set_type(Bool);
 }
 
 void eq_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    e1->check_type(class_node, object_env, class_tbl);
+    e2->check_type(class_node, object_env, class_tbl);
+    auto T1 = e1->get_type();
+    auto T2 = e2->get_type();
+    if (((T1 == Int || T1 == Str || T1 == Bool) ||
+         (T2 == Int || T2 == Str || T2 == Bool)) &&
+        T1 != T2)
+    {
+        class_tbl.semant_error(class_node) << "Objects with type Int, String, or Bool can only be compared with others of the same type." << std::endl;
+    }
+    set_type(Bool);
 }
 
 void leq_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    compare_type_check(class_node, object_env, class_tbl, e1, e2);
+    set_type(Bool);
 }
 
 void comp_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    e1->check_type(class_node, object_env, class_tbl);
+    if (e1->get_type() != Bool)
+    {
+        class_tbl.semant_error(class_node) << "Complement argument must be of type Bool" << std::endl;
+    }
+    set_type(Bool);
 }
 
 void int_const_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    set_type(Int);
 }
 
 void bool_const_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    set_type(Bool);
 }
 
 void string_const_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    set_type(Str);
 }
 void new__class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    set_type(type_name == SELF_TYPE ? class_node : type_name);
 }
 
 void isvoid_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    e1->check_type(class_node, object_env, class_tbl);
+    set_type(Bool);
 }
 
 void no_expr_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    set_type(No_type);
 }
 
 void object_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    set_type(reference_object(class_node, name, object_env, class_tbl));
 }
 
 void attr_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
+    if (this->name == self)
+    {
+        class_tbl.semant_error(class_tbl.sym_class.at(class_node)) << "Attribute named self not allowed." << std::endl;
+        halt();
+    }
+    auto T_0 = reference_object(class_node, name, object_env, class_tbl);
+    if (T_0 != get_type_decl())
+    {
+        class_tbl.semant_error(class_tbl.sym_class.at(class_node)) << "Attr-No-Init type mismatch" << std::endl;
+    }
+    if (!is_none_type(init))
+    {
+        object_env.enterscope();
+        add_object(class_node, self, class_node, object_env, class_tbl);
+        this->init->check_type(class_node, object_env, class_tbl);
+        auto T_1 = init->get_type();
+        object_env.exitscope();
+        if (!class_tbl.type_lte(T_1, T_0))
+        {
+            class_tbl.semant_error(class_tbl.sym_class.at(class_node)) << "Attr-Init incompatible expression and declared type." << std::endl;
+        }
+    }
 }
 
 void method_class::check_type(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
-    auto M = reference_method(class_node, name, class_tbl);
+    if (is_dfl_class(class_node))
+        return;
+    auto M = reference_method(class_node, class_node, name, class_tbl);
+    auto T_0 = M->get_formals()->len() ? M->get_formals()->nth(M->get_formals()->len() - 1)->get_type_decl() : Object;
+    object_env.enterscope();
+    add_object(class_node, self, class_node, object_env, class_tbl);
+    for (int i = 0; i + 1 < M->get_formals()->len(); ++i)
+    {
+        auto arg = M->get_formals()->nth(i);
+        add_object(class_node, arg->get_name(), arg->get_type_decl(), object_env, class_tbl);
+    }
+    expr->check_type(class_node, object_env, class_tbl);
+    auto T_0p = expr->get_type();
+    object_env.exitscope();
+    auto T_c = (T_0 == SELF_TYPE ? class_node : T_0);
+
+    if (!class_tbl.type_lte(T_0p, T_c))
+    {
+        class_tbl.semant_error(class_tbl.sym_class.at(class_node)) << "Incompatible declared method return type and actual expression deduced type." << std::endl;
+    }
 }
 
 inline void ClassTable::add_edge(Symbol class_id, Symbol parent_id)
@@ -584,12 +731,12 @@ void ClassTable::install_basic_classes()
 //
 ///////////////////////////////////////////////////////////////////
 
-ostream &ClassTable::semant_error(Class_ c)
+ostream &ClassTable::semant_error(Class_ c) const
 {
     return semant_error(c->get_filename(), c);
 }
 
-ostream &ClassTable::semant_error(Symbol filename, tree_node *t)
+ostream &ClassTable::semant_error(Symbol filename, tree_node *t) const
 {
     error_stream << filename << ":" << t->get_line_number() << ": ";
     return semant_error();
@@ -601,28 +748,33 @@ ostream &ClassTable::semant_error() const
     return error_stream;
 }
 
-inline void add_object(Symbol id, Symbol type, ObjectEnv &object_env, ClassTable const &class_tbl)
+ostream &ClassTable::semant_error(Symbol c) const
+{
+    return semant_error(sym_class.at(c));
+}
+
+inline void add_object(Symbol class_node, Symbol id, Symbol type, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
     if (object_env.probe(id))
     {
-        class_tbl.semant_error() << "Illegal redefinition of variable." << std::endl;
+        class_tbl.semant_error(class_node) << "Illegal redefinition of variable." << std::endl;
         halt();
     }
     object_env.addid(id, type);
 }
 
-inline Symbol reference_object(Symbol id, ObjectEnv &object_env, ClassTable const &class_tbl)
+inline Symbol reference_object(Symbol class_node, Symbol id, ObjectEnv &object_env, ClassTable const &class_tbl)
 {
     auto T = object_env.lookup(id);
     if (!T)
     {
-        class_tbl.semant_error() << "Reference to undefined object identifier." << std::endl;
+        class_tbl.semant_error(class_node) << "Reference to undefined object identifier." << std::endl;
         halt();
     }
     return T;
 }
 
-inline method_class const *reference_method(Symbol C, Symbol f, ClassTable const &class_tbl)
+inline method_class const *reference_method(Symbol class_node, Symbol C, Symbol f, ClassTable const &class_tbl)
 {
     if (class_tbl.m_Table.count(C) &&
         class_tbl.m_Table.at(C).count(f))
@@ -631,20 +783,20 @@ inline method_class const *reference_method(Symbol C, Symbol f, ClassTable const
     }
     if (C == Object)
     {
-        class_tbl.semant_error() << "Reference to undefined method." << std::endl;
+        class_tbl.semant_error(class_node) << "Reference to undefined method." << std::endl;
 
         halt();
         return nullptr;
     }
-    return reference_method(class_tbl.sym_class.at(C)->get_parent_name(), f, class_tbl);
+    return reference_method(class_node, class_tbl.sym_class.at(C)->get_parent_name(), f, class_tbl);
 }
 
-inline void add_method(Symbol C, Symbol f, ClassTable &class_tbl, method_class const *m)
+inline void add_method(Symbol class_node, Symbol C, Symbol f, ClassTable &class_tbl, method_class const *m)
 {
     if (class_tbl.m_Table.count(C) &&
         class_tbl.m_Table.at(C).count(f))
     {
-        class_tbl.semant_error() << "Redefinition of method in same class." << std::endl;
+        class_tbl.semant_error(class_node) << "Redefinition of method in same class." << std::endl;
 
         halt();
     }
@@ -665,11 +817,13 @@ inline void halt(ClassTable const *classtable)
         exit(1);
     }
 }
+
 void ClassTable::check_type()
 {
     ObjectEnv object_env;
     check_type(object_env, Object);
 }
+
 void ClassTable::check_type(ObjectEnv &object_env, Symbol class_node)
 {
     object_env.enterscope();
@@ -678,7 +832,7 @@ void ClassTable::check_type(ObjectEnv &object_env, Symbol class_node)
     {
         if (attr_class *a = dynamic_cast<attr_class *>(features->nth(i)); a)
         {
-            add_object(a->get_name(), a->get_type_decl(), object_env, *this);
+            add_object(class_node, a->get_name(), a->get_type_decl(), object_env, *this);
         }
     }
 
@@ -687,7 +841,7 @@ void ClassTable::check_type(ObjectEnv &object_env, Symbol class_node)
         Feature f = features->nth(i);
         if (method_class const *m = dynamic_cast<method_class const *>(f); m)
         {
-            add_method(class_node, m->get_name(), *this, m);
+            add_method(class_node, class_node, m->get_name(), *this, m);
         }
     }
 
@@ -725,6 +879,8 @@ void program_class::semant()
     ClassTable *classtable = new ClassTable(classes);
     halt(classtable);
     classtable->check_hierarchy();
+    halt(classtable);
+    classtable->check_type();
     halt(classtable);
 
     /* some semantic analysis code may go here */

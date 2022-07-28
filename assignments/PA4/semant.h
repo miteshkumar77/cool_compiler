@@ -28,10 +28,16 @@ using MethodTable = std::unordered_map<Symbol,
 
 inline void halt();
 inline void halt(ClassTable const *classtable);
-inline void add_object(Symbol id, Symbol type, ObjectEnv &object_env, ClassTable const &class_tbl);
-inline Symbol reference_object(Symbol id, ObjectEnv &object_env, ClassTable const &class_tbl);
-inline method_class const *reference_method(Symbol C, Symbol f, ClassTable const &class_tbl);
-inline void add_method(Symbol C, Symbol f, ClassTable &class_tbl, method_class const *m);
+inline void add_object(Symbol class_node, Symbol id, Symbol type, ObjectEnv &object_env, ClassTable const &class_tbl);
+inline Symbol reference_object(Symbol class_node, Symbol id, ObjectEnv &object_env, ClassTable const &class_tbl);
+inline method_class const *reference_method(Symbol class_node, Symbol C, Symbol f, ClassTable const &class_tbl);
+inline void add_method(Symbol class_node, Symbol C, Symbol f, ClassTable &class_tbl, method_class const *m);
+void arith_type_check(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl,
+                      Expression e1, Expression e2);
+void compare_type_check(Symbol class_node, ObjectEnv &object_env, ClassTable const &class_tbl,
+                        Expression e1, Expression e2);
+inline bool is_none_type(Expression e) { return dynamic_cast<no_expr_class const *>(e); };
+inline bool is_dfl_class(Symbol class_name);
 
 class ClassTable
 {
@@ -54,8 +60,9 @@ public:
       std::unordered_set<Symbol> members,
       Symbol class_node) const;
   ostream &semant_error() const;
-  ostream &semant_error(Class_ c);
-  ostream &semant_error(Symbol filename, tree_node *t);
+  ostream &semant_error(Class_ c) const;
+  ostream &semant_error(Symbol filename, tree_node *t) const;
+  ostream &semant_error(Symbol c) const;
   bool type_lte(Symbol base_t, Symbol super_t) const;
   bool type_lt(Symbol base_t, Symbol super_t) const;
   Symbol lca(std::unordered_set<Symbol> const &classes) const;
